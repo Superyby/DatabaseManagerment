@@ -4,6 +4,7 @@ use serde::{ Deserialize, Serialize };
 use tracing_subscriber::{ layer::SubscriberExt, util::SubscriberInitExt };
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
+mod routes;
 
 #[tokio::main]
 async fn main() {
@@ -70,7 +71,7 @@ async fn list_databases(_req: Json<ListDatabasesRequest>) -> Json<Vec<DatabaseIt
                 id: 1,
                 name: "production_db".to_string(),
                 r#type: "mysql".to_string(),
-                host: "192.168.31.36".to_string(),
+                host: "localhost".to_string(),
                 port: 3306,
             },
             DatabaseItem {
