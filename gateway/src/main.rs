@@ -10,7 +10,7 @@ mod proxy;
 mod routes;
 mod state;
 
-use axum::{middleware, routing::get, Json, Router};
+use axum::{middleware, routing::get, Json, Router, response::Html};
 use common::config::AppConfig;
 use common::middleware::request_id::request_id_middleware;
 use state::AppState;
@@ -90,6 +90,8 @@ fn create_router(state: AppState) -> Router {
         .merge(routes::router())
         .merge(proxy::router())
         .route("/api-docs/openapi.json", get(openapi_json))
+        .route("/swagger-ui", get(swagger_ui))
+        .route("/docs", get(swagger_ui))
         .layer(CompressionLayer::new())
         .layer(middleware::from_fn(request_id_middleware))
         .layer(TraceLayer::new_for_http())
@@ -99,4 +101,36 @@ fn create_router(state: AppState) -> Router {
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
+}
+
+/// Swagger UI 页面（使用 CDN 加载）
+async fn swagger_ui() -> Html<&'static str> {
+    Html(r#"<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库管理系统 - API 文档</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    <style>
+        body { margin: 0; padding: 0; }
+        .swagger-ui .topbar { display: none; }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = () => {
+            SwaggerUIBundle({
+                url: '/api-docs/openapi.json',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [SwaggerUIBundle.presets.apis],
+                layout: 'BaseLayout'
+            });
+        };
+    </script>
+</body>
+</html>"#)
 }
