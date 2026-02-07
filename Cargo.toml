@@ -1,20 +1,59 @@
-[package]
-name = "databasemanager"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["common", "gateway", "connection-service", "query-service"]
+resolver = "2"
 
-[dependencies]
-axum = "0.8.8"
-tokio = { version = "1.35", features = ["full"] }
-tower-http = { version = "0.6.8", features = ["cors", "trace", "compression-full"] }
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = []
+license = "MIT"
+
+[workspace.dependencies]
+# Web 框架
+axum = "0.8"
+tokio = { version = "1.44", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-full", "request-id"] }
+tower = "0.5"
+hyper = { version = "1.6", features = ["full"] }
+http-body-util = "0.1"
+
+# HTTP 客户端（服务间通信）
+reqwest = { version = "0.12", features = ["json"] }
+
+# 日志与追踪
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# 序列化
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "mysql", "postgres", "sqlite"] }
-async-trait = "0.1"
-thiserror = "2.0.18"
+
+# 关系型数据库
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "mysql", "postgres", "sqlite"] }
+
+# 非关系型数据库
+redis = { version = "0.28", features = ["tokio-comp", "connection-manager"] }
+
+# 参数校验
+validator = { version = "0.20", features = ["derive"] }
+
+# 错误处理
+thiserror = "2.0"
+anyhow = "1.0"
+
+# 工具库
 chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.12", features = ["v4", "serde"] }
+async-trait = "0.1"
+
+# API 文档
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+# utoipa-swagger-ui 编译时需要从 GitHub 下载资源，网络问题可注释掉
+# 可通过 /api-docs/openapi.json 导入在线 Swagger Editor 查看
+# utoipa-swagger-ui = { version = "8", features = ["axum", "reqwest"] }
+
+# 内部模块
+common = { path = "common" }
 
 [profile.release]
 lto = "fat"

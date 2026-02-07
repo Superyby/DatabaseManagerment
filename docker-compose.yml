@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  gateway:
+    build:
+      context: .
+      target: gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - CONNECTION_SERVICE_URL=http://connection-service:8081
+      - QUERY_SERVICE_URL=http://query-service:8082
+      - RUST_LOG=info
+    depends_on:
+      - connection-service
+      - query-service
+    networks:
+      - dbmanager-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  connection-service:
+    build:
+      context: .
+      target: connection-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8081
+      - RUST_LOG=info
+      - MAX_CONNECTIONS=10
+      - CONNECT_TIMEOUT=30
+    networks:
+      - dbmanager-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  query-service:
+    build:
+      context: .
+      target: query-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8082
+      - CONNECTION_SERVICE_URL=http://connection-service:8081
+      - RUST_LOG=info
+    depends_on:
+      - connection-service
+    networks:
+      - dbmanager-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  dbmanager-network:
+    driver: bridge

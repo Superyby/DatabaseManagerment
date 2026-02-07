@@ -1,0 +1,45 @@
+[package]
+name = "gateway"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "数据库管理微服务 API 网关"
+
+[[bin]]
+name = "gateway"
+path = "src/main.rs"
+
+[dependencies]
+# 内部模块
+common = { workspace = true }
+
+# Web 框架
+axum = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+tower = { workspace = true }
+hyper = { workspace = true }
+http-body-util = { workspace = true }
+
+# HTTP 客户端
+reqwest = { workspace = true }
+
+# 日志与追踪
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# 序列化
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# 错误处理
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# 工具库
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# API 文档
+utoipa = { workspace = true }
