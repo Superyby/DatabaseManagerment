@@ -20,6 +20,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/query", post(execute_query))
         .route("/api/health", get(health_check))
+        .route("/api/test", get(hello_test))
 }
 
 /// 执行 SQL 查询
@@ -78,3 +79,7 @@ pub struct HealthResponse {
     pub timestamp: DateTime<Utc>,
 }
 
+/// 测试方法
+pub async fn hello_test() -> Json<ApiResponse<String>> {
+    Json(ApiResponse::ok("hello test".to_string()))
+}
