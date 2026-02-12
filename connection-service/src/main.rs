@@ -9,6 +9,7 @@ mod pool_manager;
 mod routes;
 mod service;
 mod state;
+mod handlers;
 
 use axum::{middleware, routing::get, Json, Router};
 use common::config::AppConfig;
@@ -32,20 +33,22 @@ const DEFAULT_PORT: u16 = 8081;
         description = "数据库连接管理微服务"
     ),
     paths(
-        routes::list_connections,
-        routes::create_connection,
-        routes::get_connection,
-        routes::delete_connection,
-        routes::test_connection,
-        routes::health_check,
+        handlers::list_connections,
+        handlers::create_connection,
+        handlers::get_connection,
+        handlers::delete_connection,
+        handlers::test_connection,
+        handlers::health_check,
+        handlers::get_pool_info,
     ),
     components(schemas(
         common::models::ConnectionConfig,
         common::models::ConnectionItem,
         common::models::CreateConnectionRequest,
         common::models::DbType,
-        routes::ConnectionTestResult,
-        routes::HealthResponse,
+        handlers::ConnectionTestResult,
+        handlers::HealthResponse,
+        handlers::PoolInfo,
     )),
     tags(
         (name = "connections", description = "连接管理端点"),

@@ -9,6 +9,7 @@
 mod proxy;
 mod routes;
 mod state;
+mod handlers;
 
 use axum::{middleware, routing::get, Json, Router, response::Html};
 use common::config::AppConfig;
@@ -33,13 +34,13 @@ const DEFAULT_PORT: u16 = 8080;
         description = "数据库管理微服务 API 网关"
     ),
     paths(
-        routes::health_check,
-        routes::aggregated_health,
+        handlers::health_check,
+        handlers::aggregated_health,
     ),
     components(schemas(
-        routes::HealthResponse,
-        routes::AggregatedHealth,
-        routes::ServiceHealth,
+        handlers::HealthResponse,
+        handlers::AggregatedHealth,
+        handlers::ServiceHealth,
     )),
     tags(
         (name = "gateway", description = "网关端点"),

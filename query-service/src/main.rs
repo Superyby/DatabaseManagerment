@@ -8,6 +8,7 @@
 mod routes;
 mod service;
 mod state;
+mod handlers;
 
 use axum::{middleware, routing::get, Json, Router};
 use common::config::AppConfig;
@@ -31,14 +32,15 @@ const DEFAULT_PORT: u16 = 8082;
         description = "SQL 查询执行微服务"
     ),
     paths(
-        routes::execute_query,
-        routes::health_check,
+        handlers::execute_query,
+        handlers::health_check,
+        handlers::hello_test,
     ),
     components(schemas(
         common::models::QueryRequest,
         common::models::QueryResult,
         common::models::ColumnInfo,
-        routes::HealthResponse,
+        handlers::HealthResponse,
     )),
     tags(
         (name = "query", description = "查询执行端点"),
