@@ -18,6 +18,14 @@ pub enum DbType {
     SQLite,
     /// Redis key-value store.
     Redis,
+    /// MongoDB database.
+    MongoDB,
+    /// ClickHouse database.
+    ClickHouse,
+    /// Rabbitmq message broker.
+    Rabbitmq,
+    /// Elasticsearch search engine.
+    Elasticsearch,
 }
 
 impl DbType {
@@ -28,6 +36,10 @@ impl DbType {
             DbType::Postgres => Some(5432),
             DbType::SQLite => None,
             DbType::Redis => Some(6379),
+            DbType::MongoDB => Some(27017),
+            DbType::ClickHouse => Some(8123),
+            DbType::Rabbitmq => Some(5672),
+            DbType::Elasticsearch => Some(9200),
         }
     }
 }
@@ -39,6 +51,10 @@ impl std::fmt::Display for DbType {
             DbType::Postgres => write!(f, "postgres"),
             DbType::SQLite => write!(f, "sqlite"),
             DbType::Redis => write!(f, "redis"),
+            DbType::MongoDB => write!(f, "mongodb"),
+            DbType::ClickHouse => write!(f, "clickhouse"),
+            DbType::Rabbitmq => write!(f, "rabbitmq"),
+            DbType::Elasticsearch => write!(f, "elasticsearch"),
         }
     }
 }
@@ -82,7 +98,7 @@ pub struct CreateConnectionRequest {
     pub name: String,
     /// Database type.
     pub db_type: DbType,
-    /// Database host (required for mysql/postgres/redis).
+    /// Database host (required for mysql/postgres/redis/mongodb/clickhouse/rabbitmq/elasticsearch).
     pub host: Option<String>,
     /// Database port (uses default if not specified).
     pub port: Option<u16>,
