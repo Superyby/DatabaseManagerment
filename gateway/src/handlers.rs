@@ -43,6 +43,7 @@ pub async fn aggregated_health(
     let services = vec![
         check_service_health(&state.http_client, "connection-service", &state.service_urls.connection_service).await,
         check_service_health(&state.http_client, "query-service", &state.service_urls.query_service).await,
+        check_service_health(&state.http_client, "ai-service", &state.service_urls.ai_service).await,
     ];
 
     let all_healthy = services.iter().all(|s| s.healthy);

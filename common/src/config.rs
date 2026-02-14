@@ -131,6 +131,10 @@ pub struct ServiceUrls {
     /// Query service URL.
     #[serde(default = "default_query_service_url")]
     pub query_service: String,
+
+    /// AI service URL.
+    #[serde(default = "default_ai_service_url")]
+    pub ai_service: String,
 }
 
 impl ServiceUrls {
@@ -142,6 +146,8 @@ impl ServiceUrls {
                 .unwrap_or_else(|_| default_connection_service_url()),
             query_service: std::env::var("QUERY_SERVICE_URL")
                 .unwrap_or_else(|_| default_query_service_url()),
+            ai_service: std::env::var("AI_SERVICE_URL")
+                .unwrap_or_else(|_| default_ai_service_url()),
         }
     }
 }
@@ -156,4 +162,8 @@ fn default_connection_service_url() -> String {
 
 fn default_query_service_url() -> String {
     "http://localhost:8082".to_string()
+}
+
+fn default_ai_service_url() -> String {
+    "http://localhost:8083".to_string()
 }

@@ -21,6 +21,11 @@ pub fn router() -> Router<AppState> {
         // 查询服务路由
         .route("/api/query", post(proxy_to_query_service))
         .route("/api/databases", post(proxy_to_query_service))
+        // AI 服务路由
+        .route("/api/ai/query", post(proxy_to_ai_service))
+        .route("/api/ai/clarify", post(proxy_to_ai_service))
+        .route("/api/ai/validate", post(proxy_to_ai_service))
+        .route("/api/ai/{*path}", any(proxy_to_ai_service))
 }
 
 /// 转发请求到连接服务
@@ -37,6 +42,14 @@ async fn proxy_to_query_service(
     req: Request<Body>,
 ) -> Response {
     proxy_request(&state, &state.service_urls.query_service, req).await
+}
+
+/// 转发请求到 AI 服务
+async fn proxy_to_ai_service(
+    State(state): State<AppState>,
+    req: Request<Body>,
+) -> Response {
+    proxy_request(&state, &state.service_urls.ai_service, req).await
 }
 
 /// 转发请求到目标服务
