@@ -1,0 +1,78 @@
+name: 📧 DatabaseManagerment 提交邮件通知
+
+
+on:
+  push:
+    branches: [ main, master ]  # 监听主分支的推送
+
+
+jobs:
+  send_email_notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整提交历史
+
+
+      - name: 📝 提取提交信息
+        id: get_commit_info
+        run: |
+          # 获取最近一次提交的关键信息
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an")
+          COMMIT_HASH=$(git log -1 --pretty=format:"%h")
+          COMMIT_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+          
+          # 获取文件变更统计（限制行数防超长）
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            CHANGES=$(git diff --stat HEAD~1 HEAD | head -n 15)
+          else
+            CHANGES="✨ 首次提交"
+          fi
+          
+          # 写入环境变量供后续步骤使用
+          echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_ENV
+          echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_ENV
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+          echo "COMMIT_URL=$COMMIT_URL" >> $GITHUB_ENV
+          echo "CHANGES<<EOF" >> $GITHUB_ENV
+          echo "$CHANGES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+
+      - name: ✉️ 通过 163 邮箱发送通知
+        uses: dawidd6/action-send-mail@v3
+        with:
+          # --- SMTP 配置（163 邮箱专用）---
+          server_address: smtp.163.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          secure: true  # 启用 SSL 加密（163 强制要求）
+
+
+          # --- 邮件内容 ---
+          subject: "🚀 新代码提交 | DatabaseManagerment | ${{ env.COMMIT_HASH }}"
+          body: |
+            📬 GitHub 自动通知
+            
+            📁 仓库：${{ github.repository }}
+            🌿 分支：${{ github.ref_name }}
+            👤 提交者：${{ env.COMMIT_AUTHOR }}
+            🕒 UTC 时间：${{ github.event.head_commit.timestamp }}
+            
+            📌 提交信息：
+            ${{ env.COMMIT_MSG }}
+            
+            📊 变更概览：
+            ${{ env.CHANGES }}
+            
+            🔗 查看详情：
+            ${{ env.COMMIT_URL }}
+            
+            —— 本邮件由 GitHub Actions 自动发送，无需回复。
+          to: ${{ secrets.NOTIFICATION_EMAILS }}
+          from: GitHub小助手 <${{ secrets.MAIL_USERNAME }}>
+          reply_to: ${{ secrets.MAIL_USERNAME }}
