@@ -40,10 +40,6 @@ const DEFAULT_PORT: u16 = 8081;
         handlers::test_connection,
         handlers::health_check,
         handlers::get_pool_info,
-        // Trait 演示接口
-        handlers::demo_trait_real,
-        handlers::demo_trait_mock,
-        handlers::demo_trait_generic,
     ),
     components(schemas(
         common::models::ConnectionConfig,
@@ -53,18 +49,19 @@ const DEFAULT_PORT: u16 = 8081;
         handlers::ConnectionTestResult,
         handlers::HealthResponse,
         handlers::PoolInfo,
-        handlers::TraitDemoResponse,
     )),
     tags(
         (name = "connections", description = "连接管理端点"),
-        (name = "health", description = "健康检查端点"),
-        (name = "demo", description = "Trait 演示端点")
+        (name = "health", description = "健康检查端点")
     )
 )]
 struct ApiDoc;
 
 #[tokio::main]
 async fn main() {
+    // Load .env file (if present) before anything else
+    load_dotenv();
+
     // 初始化日志追踪
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
@@ -81,8 +78,9 @@ async fn main() {
         .and_then(|v| v.parse().ok())
         .unwrap_or(DEFAULT_PORT);
 
-    // 创建应用状态
-    let state = AppState::new(config.clone());
+    // 创建应用状态（连接元数据 MySQL 库）
+    let state = AppState::new(config.clone()).await
+        .expect("Failed to initialize application state (check DATABASE_URL)");
 
     // 创建路由
     let app = create_router(state);
@@ -112,4 +110,27 @@ fn create_router(state: AppState) -> Router {
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
+}
+
+/// Load .env file from the working directory (best-effort, no error if missing).
+fn load_dotenv() {
+    let env_path = std::path::Path::new(".env");
+    if env_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(env_path) {
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                if let Some((key, value)) = line.split_once('=') {
+                    let key = key.trim();
+                    let value = value.trim();
+                    // Only set if not already set by the environment
+                    if std::env::var(key).is_err() {
+                        std::env::set_var(key, value);
+                    }
+                }
+            }
+        }
+    }
 }

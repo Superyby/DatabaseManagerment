@@ -39,6 +39,10 @@ pub struct AppConfig {
     #[serde(default = "default_data_dir")]
     pub data_dir: String,
 
+    /// MySQL database URL for metadata persistence.
+    #[serde(default = "default_database_url")]
+    pub database_url: String,
+
     /// Service name for identification.
     #[serde(default = "default_service_name")]
     pub service_name: String,
@@ -65,6 +69,7 @@ impl AppConfig {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or_else(default_connect_timeout),
             data_dir: std::env::var("DATA_DIR").unwrap_or_else(|_| default_data_dir()),
+            database_url: std::env::var("DATABASE_URL").unwrap_or_else(|_| default_database_url()),
             service_name: std::env::var("SERVICE_NAME").unwrap_or_else(|_| default_service_name()),
         }
     }
@@ -110,6 +115,11 @@ fn default_connect_timeout() -> u64 {
 /// Default data directory.
 fn default_data_dir() -> String {
     "./data".to_string()
+}
+
+/// Default MySQL database URL for metadata.
+fn default_database_url() -> String {
+    "mysql://root:123456@localhost:3306/db_management".to_string()
 }
 
 /// Default service name.

@@ -12,8 +12,4 @@ pub fn router() -> Router<AppState> {
         .route("/api/query", post(handlers::execute_query))
         .route("/api/health", get(handlers::health_check))
         .route("/api/test", get(handlers::hello_test))
-
-        // Trait 演示接口
-        .route("/api/demo/trait/real", get(handlers::demo_trait_real))
-        .route("/api/demo/trait/mock", get(handlers::demo_trait_mock))
 }
