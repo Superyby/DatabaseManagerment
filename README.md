@@ -106,9 +106,9 @@ DatabaseManager/
 
 | 模式 | 容器数 | 内存 | 命令 |
 |------|--------|------|------|
-| 单容器 | 1 | ~200MB | `./start.sh single` |
-| 多容器 | 4 | ~400MB | `./start.sh multi` |
-| 本地 | 0 | ~150MB | `./start.sh local` |
+| 单容器 | 1 | ~20MB | `./start.sh single` |
+| 多容器 | 4 | ~40MB | `./start.sh multi` |
+| 本地 | 0 | ~15MB | `./start.sh local` |
 
 ### 手动 Docker 部署
 
