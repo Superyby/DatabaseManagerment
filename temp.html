@@ -3,319 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>致 我最亲爱的你</title>
+    <title>Our Story | 时光胶卷</title>
     <style>
-        /* ==================== 基础设定 ==================== */
+        /* ==================== 全局重置与变量 ==================== */
         :root {
-            --bg-color: #0f172a;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent-pink: #f472b6;
-            --accent-gold: #fbbf24;
-            --card-bg: rgba(255, 255, 255, 0.05);
-            --card-border: rgba(255, 255, 255, 0.1);
-            --font-hand: 'Microsoft YaHei', sans-serif; /* 实际使用可引入手写字体 */
+            --bg-color: #0a0a0c; /* 深邃黑灰，非纯黑 */
+            --text-main: #e0e0e0;
+            --text-dim: #6b6b75;
+            --accent-gold: #d4af37; /* 哑光金，不刺眼 */
+            --accent-soft: #bfaea8; /* 柔和的干枯玫瑰色 */
+            --font-serif: "Times New Roman", "Songti SC", serif;
+            --font-hand: "Brush Script MT", "Comic Sans MS", cursive; /* 模拟手写 */
+            --cursor-size: 20px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; /* 隐藏默认鼠标 */ }
         
         body {
             background-color: var(--bg-color);
-            color: var(--text-primary);
-            font-family: var(--font-hand);
+            color: var(--text-main);
+            font-family: var(--font-serif);
             overflow-x: hidden;
-            min-height: 100vh;
+            line-height: 1.8;
+            /* 添加胶片噪点纹理 */
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
         }
 
-        /* 隐藏滚动条但保留功能 */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: var(--bg-color); }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-
-        /* ==================== 场景一：信封开场 ==================== */
-        #intro-overlay {
+        /* ==================== 自定义光标 ==================== */
+        .cursor {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            top: 0; left: 0;
+            width: var(--cursor-size);
+            height: var(--cursor-size);
+            border: 1px solid var(--accent-gold);
+            border-radius: 50%;
+            pointer-events: none;
             z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s, background-color 0.3s;
+            mix-blend-mode: difference;
+        }
+        
+        .cursor.hovered {
+            width: 50px;
+            height: 50px;
+            background-color: rgba(212, 175, 55, 0.2);
+            border-color: transparent;
+        }
+
+        .cursor-dot {
+            position: fixed;
+            top: 0; left: 0;
+            width: 4px;
+            height: 4px;
+            background: var(--accent-gold);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10000;
+            transform: translate(-50%, -50%);
+        }
+
+        /* ==================== 开场动画层 (Cinematic Intro) ==================== */
+        #intro-layer {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            z-index: 9998;
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            transition: opacity 1s ease, visibility 1s;
+            transition: transform 1.2s cubic-bezier(0.77, 0, 0.175, 1);
         }
 
-        .envelope-container {
-            position: relative;
-            cursor: pointer;
-            transition: transform 0.5s;
-        }
-
-        .envelope-container:hover {
-            transform: scale(1.05);
-        }
-
-        .envelope {
-            width: 300px;
-            height: 200px;
-            background: #fff;
-            position: relative;
-            border-radius: 10px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
-
-        .envelope-flap {
-            position: absolute;
-            top: 0;
-            width: 0;
-            height: 0;
-            border-left: 150px solid transparent;
-            border-right: 150px solid transparent;
-            border-top: 110px solid #fca5a5; /* 信封盖颜色 */
-            transform-origin: top;
-            transition: transform 0.6s 0.2s ease-in-out, z-index 0.2s;
-            z-index: 10;
-            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2));
-        }
-
-        .envelope-body {
-            position: absolute;
-            bottom: 0;
-            width: 0;
-            height: 0;
-            border-left: 150px solid #fdba74;
-            border-right: 150px solid #fdba74;
-            border-bottom: 100px solid #fcd34d;
-            border-top: 100px solid transparent;
-            z-index: 5;
-            border-radius: 0 0 10px 10px;
-        }
-
-        .letter-preview {
-            position: absolute;
-            width: 260px;
-            height: 160px;
-            background: #fff;
-            color: #333;
-            padding: 20px;
-            font-size: 14px;
-            line-height: 1.6;
-            z-index: 1;
-            transition: transform 0.8s 0.5s ease-in-out;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+        .intro-text-container {
             text-align: center;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 1s ease 0.5s;
         }
 
-        .letter-preview h3 {
-            font-size: 18px;
-            color: var(--accent-pink);
-            margin-bottom: 10px;
-            font-family: 'Times New Roman', serif;
+        .typewriter {
+            font-family: var(--font-hand);
+            font-size: 1.5rem;
+            color: var(--accent-gold);
+            border-right: 2px solid var(--accent-gold);
+            white-space: nowrap;
+            overflow: hidden;
+            animation: blink 0.7s step-end infinite;
+            max-width: 0; /* 初始宽度为 0 */
         }
 
-        .click-hint {
-            margin-top: 30px;
-            color: var(--text-secondary);
-            font-size: 14px;
-            letter-spacing: 2px;
-            animation: pulse 2s infinite;
+        .film-grain-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E");
+            pointer-events: none;
+            opacity: 0.3;
+            animation: grain 0.5s steps(5) infinite;
         }
 
-        /* 开启动画类 */
-        .envelope-container.open .envelope-flap {
-            transform: rotateX(180deg);
-            z-index: 1;
+        @keyframes blink { 50% { border-color: transparent; } }
+        @keyframes grain { 0%, 100% { transform: translate(0,0); } 10% { transform: translate(-5%,-5%); } 20% { transform: translate(5%,5%); } 30% { transform: translate(-5%,5%); } 40% { transform: translate(5%,-5%); } }
+
+        /* 开场结束后的遮罩上移 */
+        #intro-layer.slide-up {
+            transform: translateY(-100%);
         }
-        .envelope-container.open .letter-preview {
-            transform: translateY(-120px);
-            z-index: 20;
+        
+        #intro-layer.visible .intro-text-container {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        #intro-layer.visible .typewriter {
+            animation: typing 3s steps(40, end) forwards, blink 0.7s step-end infinite;
+            max-width: 100%; /* 展开文字 */
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
-        }
+        @keyframes typing { from { max-width: 0; } to { max-width: 100%; } }
 
         /* ==================== 主内容区 ==================== */
         #main-content {
             opacity: 0;
-            transition: opacity 1.5s ease;
-            display: none; /* 初始隐藏 */
+            transition: opacity 2s ease 1s;
+            padding-top: 100px;
         }
 
-        /* 背景星空 Canvas */
-        #star-canvas {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        /* 通用容器 */
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 100px 20px;
-        }
-
-        /* 标题样式 */
-        .section-title {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 60px;
-            font-weight: 300;
-            letter-spacing: 5px;
-            position: relative;
-            display: inline-block;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-        
-        .section-title::after {
-            content: '';
-            display: block;
-            width: 60px;
-            height: 2px;
-            background: var(--accent-pink);
-            margin: 20px auto 0;
-            border-radius: 2px;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            margin-top: 10px;
-            font-style: italic;
-        }
-
-        /* ==================== 场景二：拍立得照片墙 ==================== */
-        .photo-wall {
-            position: relative;
-            height: 600px;
-            margin: 50px 0;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            perspective: 1000px;
-        }
-
-        /* 绳子 */
-        .rope {
-            position: absolute;
-            top: 50px;
-            width: 80%;
-            height: 2px;
-            background: rgba(255,255,255,0.3);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-            z-index: 0;
-        }
-
-        .polaroid {
-            position: absolute;
-            width: 220px;
-            background: #fff;
-            padding: 15px 15px 60px 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            transition: all 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
-            cursor: pointer;
-            transform-style: preserve-3d;
-            color: #333;
-        }
-
-        .polaroid img {
-            width: 100%;
-            height: 180px;
-            object-fit: cover;
-            filter: sepia(20%);
-            transition: filter 0.3s;
-        }
-
-        .polaroid:hover {
-            z-index: 100;
-            transform: scale(1.2) rotate(0deg) !important;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            filter: brightness(1.1);
-        }
-        
-        .polaroid:hover img {
-            filter: sepia(0%);
-        }
-
-        .polaroid-caption {
-            position: absolute;
-            bottom: 15px;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            font-family: 'Comic Sans MS', cursive, sans-serif; /* 模拟手写 */
-            font-size: 16px;
-            color: #555;
-        }
-
-        /* 背面情话 */
-        .polaroid-back {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: #fdfbf7;
-            backface-visibility: hidden;
-            transform: rotateY(180deg);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            text-align: center;
-            font-size: 14px;
-            color: #444;
-            line-height: 1.6;
-            border: 1px dashed #ccc;
-            opacity: 0;
-            transition: opacity 0.4s;
-        }
-
-        .polaroid.flipped {
-            transform: rotateY(180deg) !important;
-        }
-        
-        .polaroid.flipped .polaroid-back {
+        #main-content.loaded {
             opacity: 1;
         }
-        
-        .polaroid.flipped img, 
-        .polaroid.flipped .polaroid-caption {
-            opacity: 0;
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 40px;
         }
 
-        /* ==================== 场景三：星空连线时间轴 ==================== */
-        .timeline-section {
+        /* 标题风格：极简衬线体 */
+        h1, h2, h3 {
+            font-weight: 400;
+            letter-spacing: 2px;
+        }
+
+        .hero-section {
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
             position: relative;
-            padding: 100px 0;
         }
 
+        .hero-title {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: linear-gradient(to right, #fff, #888);
+            -webkit-background-clip: text;
+            color: transparent;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeUp 1s ease 0.5s forwards;
+        }
+
+        .hero-subtitle {
+            font-family: var(--font-hand);
+            font-size: 1.5rem;
+            color: var(--accent-gold);
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeUp 1s ease 0.8s forwards;
+        }
+
+        @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+
+        /* ==================== 章节通用样式 ==================== */
+        section {
+            padding: 150px 0;
+            position: relative;
+        }
+
+        .section-header {
+            margin-bottom: 80px;
+            border-left: 1px solid var(--accent-gold);
+            padding-left: 30px;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            color: var(--text-main);
+            margin-bottom: 10px;
+        }
+
+        .section-desc {
+            font-family: var(--font-hand);
+            color: var(--accent-soft);
+            font-size: 1.2rem;
+        }
+
+        /* ==================== 时间轴：星图连线 (无毛玻璃) ==================== */
+        .timeline-grid {
+            position: relative;
+            padding: 50px 0;
+        }
+
+        /* 细线连接 */
         .timeline-line {
             position: absolute;
             left: 50%;
             top: 0;
             bottom: 0;
-            width: 2px;
-            background: linear-gradient(to bottom, transparent, rgba(244, 114, 182, 0.5), transparent);
+            width: 1px;
+            background: linear-gradient(to bottom, transparent, var(--accent-gold), transparent);
             transform: translateX(-50%);
+            opacity: 0.3;
         }
 
         .timeline-item {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 100px;
             position: relative;
-            width: 50%;
-            padding: 40px;
             opacity: 0;
             transform: translateY(50px);
             transition: all 1s ease;
@@ -326,536 +237,458 @@
             transform: translateY(0);
         }
 
-        .timeline-item:nth-child(odd) { left: 0; text-align: right; }
-        .timeline-item:nth-child(even) { left: 50%; text-align: left; }
-
-        .timeline-dot {
-            position: absolute;
-            top: 50px;
-            width: 20px;
-            height: 20px;
-            background: var(--bg-color);
-            border: 3px solid var(--accent-pink);
-            border-radius: 50%;
-            z-index: 2;
-            box-shadow: 0 0 15px var(--accent-pink);
-            transition: transform 0.3s;
+        .timeline-item:nth-child(odd) { flex-direction: row-reverse; }
+        
+        .timeline-content {
+            width: 40%;
+            padding: 30px;
+            /* 去除圆角和背景，只用边框和留白 */
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
         }
-
-        .timeline-item:nth-child(odd) .timeline-dot { right: -10px; }
-        .timeline-item:nth-child(even) .timeline-dot { left: -10px; }
-
-        .timeline-item:hover .timeline-dot {
-            transform: scale(1.3);
-            background: var(--accent-pink);
+        
+        /* 装饰性角落 */
+        .timeline-content::before {
+            content: '';
+            position: absolute;
+            top: -1px; left: -1px;
+            width: 20px; height: 20px;
+            border-top: 1px solid var(--accent-gold);
+            border-left: 1px solid var(--accent-gold);
+        }
+        .timeline-content::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; right: -1px;
+            width: 20px; height: 20px;
+            border-bottom: 1px solid var(--accent-gold);
+            border-right: 1px solid var(--accent-gold);
         }
 
         .timeline-date {
+            font-family: var(--font-hand);
             color: var(--accent-gold);
-            font-size: 0.9rem;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-
-        .timeline-content {
-            background: var(--card-bg);
-            padding: 25px;
-            border-radius: 15px;
-            border: 1px solid var(--card-border);
-            backdrop-filter: blur(5px);
-            transition: transform 0.3s;
-        }
-
-        .timeline-content:hover {
-            transform: translateY(-5px);
-            background: rgba(255,255,255,0.08);
-        }
-
-        .timeline-title {
-            font-size: 1.2rem;
-            margin-bottom: 10px;
-            color: var(--text-primary);
-        }
-
-        .timeline-desc {
-            font-size: 0.95rem;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* ==================== 场景四：互动许愿瓶 ==================== */
-        .wish-bottle-container {
-            text-align: center;
-            margin: 100px 0;
-        }
-
-        .bottle-btn {
-            background: transparent;
-            border: 2px solid var(--accent-pink);
-            color: var(--accent-pink);
-            padding: 15px 40px;
             font-size: 1.1rem;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.4s;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .timeline-text {
+            font-size: 1.1rem;
+            color: var(--text-dim);
+            line-height: 1.8;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            background: var(--bg-color);
+            border: 1px solid var(--accent-gold);
+            border-radius: 50%;
+            transform: translateX(-50%);
+            z-index: 2;
+            box-shadow: 0 0 10px var(--accent-gold);
+        }
+
+        /* ==================== 照片墙：悬浮画廊 (非网格) ==================== */
+        .gallery-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 60px;
+            perspective: 1000px;
+        }
+
+        .gallery-item {
+            width: 300px;
             position: relative;
-            overflow: hidden;
-            font-family: inherit;
+            transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transform-style: preserve-3d;
+            opacity: 0;
+            transform: translateY(50px) rotate(0deg);
+        }
+        
+        .gallery-item.visible {
+            opacity: 1;
+            transform: translateY(0) rotate(var(--rotation));
         }
 
-        .bottle-btn:hover {
-            background: var(--accent-pink);
-            color: #fff;
-            box-shadow: 0 0 30px rgba(244, 114, 182, 0.6);
+        .gallery-item:hover {
+            transform: scale(1.05) rotate(0deg) !important;
+            z-index: 10;
         }
 
-        .wish-modal {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(5px);
-            z-index: 2000;
+        .photo-frame {
+            background: #fff;
+            padding: 15px 15px 50px 15px; /* 底部留白多些，像拍立得 */
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .photo-frame img {
+            width: 100%;
+            height: 350px;
+            object-fit: cover;
+            filter: grayscale(20%) sepia(10%);
+            transition: filter 0.5s;
+        }
+
+        .gallery-item:hover img {
+            filter: grayscale(0%) sepia(0%);
+        }
+
+        .photo-caption {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-family: var(--font-hand);
+            color: #333;
+            font-size: 1.2rem;
+            writing-mode: horizontal-tb;
+        }
+
+        /* 背面留言 (点击翻转) */
+        .photo-back {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #f4f4f4;
+            color: #333;
             display: flex;
             justify-content: center;
             align-items: center;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.5s;
-        }
-
-        .wish-modal.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .wish-card {
-            background: #fff;
-            color: #333;
-            width: 90%;
-            max-width: 500px;
-            padding: 40px;
-            border-radius: 20px;
+            padding: 30px;
             text-align: center;
-            transform: scale(0.8);
-            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-family: var(--font-hand);
+            font-size: 1.1rem;
+            backface-visibility: hidden;
+            transform: rotateY(180deg);
+            opacity: 0;
+            transition: opacity 0.5s;
+            border: 1px dashed #ccc;
+        }
+
+        .gallery-item.flipped .photo-frame {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .gallery-item.flipped .photo-back {
+            opacity: 1;
+            transform: rotateY(0deg);
+        }
+
+        /* ==================== 互动区域：极简输入 ==================== */
+        .interaction-area {
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .input-group {
             position: relative;
+            margin-top: 50px;
         }
 
-        .wish-modal.active .wish-card {
-            transform: scale(1);
-        }
-
-        .wish-input {
+        .minimal-input {
             width: 100%;
-            padding: 15px;
-            margin: 20px 0;
-            border: 2px solid #eee;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-family: inherit;
-            resize: none;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--text-dim);
+            color: var(--text-main);
+            font-size: 1.2rem;
+            padding: 15px 0;
+            font-family: var(--font-serif);
             outline: none;
             transition: border-color 0.3s;
         }
 
-        .wish-input:focus {
-            border-color: var(--accent-pink);
+        .minimal-input:focus {
+            border-bottom-color: var(--accent-gold);
         }
 
-        .send-wish-btn {
-            background: linear-gradient(135deg, var(--accent-pink), #ec4899);
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 25px;
+        .minimal-input::placeholder {
+            color: var(--text-dim);
+            font-style: italic;
+        }
+
+        .send-btn {
+            margin-top: 30px;
+            background: transparent;
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 10px 40px;
+            font-family: var(--font-serif);
             font-size: 1rem;
-            cursor: pointer;
-            transition: transform 0.2s;
+            letter-spacing: 2px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
         }
 
-        .send-wish-btn:hover {
-            transform: scale(1.05);
+        .send-btn:hover {
+            background: var(--accent-gold);
+            color: #000;
         }
 
-        .close-modal {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            font-size: 24px;
-            cursor: pointer;
-            color: #999;
-        }
-
-        /* 漂浮粒子 */
-        .floating-particle {
-            position: absolute;
-            background: rgba(255,255,255,0.5);
-            border-radius: 50%;
-            pointer-events: none;
-            animation: floatUp linear forwards;
-        }
-
-        @keyframes floatUp {
-            to { transform: translateY(-100px); opacity: 0; }
-        }
-
-        /* 页脚 */
+        /* ==================== 页脚 ==================== */
         footer {
             text-align: center;
-            padding: 50px 0;
-            color: var(--text-secondary);
+            padding: 100px 0 50px;
+            color: var(--text-dim);
             font-size: 0.9rem;
-            border-top: 1px solid var(--card-border);
-            margin-top: 50px;
+            border-top: 1px solid rgba(255,255,255,0.05);
         }
 
-        .heart-beat {
-            color: var(--accent-pink);
+        .heart-icon {
+            color: var(--accent-soft);
             display: inline-block;
-            animation: heartbeat 1.5s infinite;
+            animation: heartbeat 2s infinite;
         }
 
         @keyframes heartbeat {
             0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.2); }
+            50% { transform: scale(1.1); }
         }
 
         /* 移动端适配 */
         @media (max-width: 768px) {
+            .hero-title { font-size: 2.5rem; }
             .timeline-line { left: 20px; }
-            .timeline-item { width: 100%; left: 0 !important; padding-left: 60px; text-align: left !important; }
-            .timeline-item:nth-child(odd) .timeline-dot,
-            .timeline-item:nth-child(even) .timeline-dot { left: 10px; right: auto; }
-            .photo-wall { height: auto; flex-direction: column; align-items: center; gap: 40px; padding-top: 80px;}
-            .rope { display: none; }
-            .polaroid { position: relative; top: auto !important; left: auto !important; transform: none !important; }
-            .polaroid:hover { transform: scale(1.05) !important; }
+            .timeline-item { flex-direction: column !important; align-items: flex-start; margin-left: 50px; }
+            .timeline-content { width: 100%; }
+            .timeline-dot { left: 20px; }
+            .gallery-wrapper { gap: 40px; }
+            .cursor, .cursor-dot { display: none; } /* 移动端隐藏自定义光标 */
+            * { cursor: auto; }
         }
     </style>
 </head>
 <body>
 
-    <!-- 场景一：信封开场 -->
-    <div id="intro-overlay">
-        <div class="envelope-container" id="envelope" onclick="openEnvelope()">
-            <div class="envelope">
-                <div class="envelope-flap"></div>
-                <div class="envelope-body"></div>
-                <div class="letter-preview">
-                    <h3>To: 我最爱的女孩</h3>
-                    <p>这里藏着<br>我想对你说的<br>悄悄话...</p>
-                    <div style="margin-top:15px; font-size:20px;">💌</div>
-                </div>
-            </div>
-        </div>
-        <div class="click-hint">点击信封开启我们的故事</div>
-    </div>
+    <!-- 自定义光标 -->
+    <div class="cursor" id="cursor"></div>
+    <div class="cursor-dot" id="cursorDot"></div>
 
-    <!-- 背景星空 -->
-    <canvas id="star-canvas"></canvas>
+    <!-- 开场动画层 -->
+    <div id="intro-layer">
+        <div class="film-grain-overlay"></div>
+        <div class="intro-text-container">
+            <div class="typewriter" id="typewriterText"></div>
+        </div>
+    </div>
 
     <!-- 主内容 -->
     <div id="main-content">
         
-        <!-- 欢迎语 -->
-        <div class="container" style="text-align: center; padding-top: 150px;">
-            <h1 style="font-size: 3rem; margin-bottom: 20px; background: linear-gradient(to right, #f472b6, #fbbf24); -webkit-background-clip: text; color: transparent;">遇见你，是银河赠予我的糖</h1>
-            <p class="subtitle">记录我们在一起的每一个闪光瞬间</p>
+        <!-- 首屏 -->
+        <div class="hero-section container">
+            <h1 class="hero-title">TIMELESS</h1>
+            <p class="hero-subtitle">致 我们永不褪色的时光</p>
         </div>
 
-        <!-- 场景二：拍立得照片墙 -->
-        <div class="container">
-            <h2 class="section-title">时光胶卷</h2>
-            <p class="subtitle">每一张照片，都是一段未完待续的故事</p>
+        <!-- 时间轴 -->
+        <section class="container">
+            <div class="section-header">
+                <h2 class="section-title">Chronicles</h2>
+                <p class="section-desc">Our Journey Through Time</p>
+            </div>
             
-            <div class="photo-wall" id="photoWall">
-                <div class="rope"></div>
+            <div class="timeline-grid">
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="timeline-date">2023.05.20</span>
+                        <p class="timeline-text">那是一个普通的午后，阳光穿过树叶的缝隙。你回头的那一刻，我的世界按下了暂停键。</p>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="timeline-date">2023.12.25</span>
+                        <p class="timeline-text">圣诞夜的雪很大，但你的手很暖。我们在街头分吃一个烤红薯，那是冬天最甜的味道。</p>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="timeline-date">2024.08.15</span>
+                        <p class="timeline-text">第一次长途旅行。在陌生的城市迷路，却意外发现了最美的日落。只要和你在一起，迷路也是风景。</p>
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <span class="timeline-date">Future</span>
+                        <p class="timeline-text">未来的篇章，等待我们一起书写。无论平淡或波澜，只要有你在侧，便是最好的人生。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 照片墙 -->
+        <section class="container">
+            <div class="section-header">
+                <h2 class="section-title">Memories</h2>
+                <p class="section-desc">Click to reveal the hidden words</p>
+            </div>
+
+            <div class="gallery-wrapper">
                 <!-- 照片 1 -->
-                <div class="polaroid" style="top: 80px; left: 10%; transform: rotate(-5deg);" onclick="flipCard(this)">
-                    <img src="https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?w=400" alt="相遇">
-                    <div class="polaroid-caption">初遇的那天 ☕️</div>
-                    <div class="polaroid-back">
-                        <p>那天阳光正好，你穿着白色的裙子笑起来，我就知道，我的世界里多了一束光。</p>
+                <div class="gallery-item" style="--rotation: -3deg;" onclick="flipPhoto(this)">
+                    <div class="photo-frame">
+                        <img src="https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?w=600" alt="Memory 1">
+                        <div class="photo-caption">The Beginning</div>
+                    </div>
+                    <div class="photo-back">
+                        "初见乍惊欢，久处亦怦然。"
                     </div>
                 </div>
+
                 <!-- 照片 2 -->
-                <div class="polaroid" style="top: 60px; left: 35%; transform: rotate(3deg);" onclick="flipCard(this)">
-                    <img src="https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?w=400" alt="旅行">
-                    <div class="polaroid-caption">第一次旅行 ✈️</div>
-                    <div class="polaroid-back">
-                        <p>和你一起看过的风景，都变成了我记忆里最温柔的底色。</p>
+                <div class="gallery-item" style="--rotation: 2deg;" onclick="flipPhoto(this)">
+                    <div class="photo-frame">
+                        <img src="https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?w=600" alt="Memory 2">
+                        <div class="photo-caption">Spring Walk</div>
+                    </div>
+                    <div class="photo-back">
+                        "春风十里，不如你眼中的笑意。"
                     </div>
                 </div>
+
                 <!-- 照片 3 -->
-                <div class="polaroid" style="top: 90px; left: 60%; transform: rotate(-4deg);" onclick="flipCard(this)">
-                    <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=400" alt="日常">
-                    <div class="polaroid-caption">平凡的周末 🏠</div>
-                    <div class="polaroid-back">
-                        <p>哪怕只是坐在一起发呆，只要有你在，就是最美好的时光。</p>
+                <div class="gallery-item" style="--rotation: -1deg;" onclick="flipPhoto(this)">
+                    <div class="photo-frame">
+                        <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=600" alt="Memory 3">
+                        <div class="photo-caption">Quiet Moments</div>
                     </div>
-                </div>
-                <!-- 照片 4 -->
-                <div class="polaroid" style="top: 70px; left: 80%; transform: rotate(6deg);" onclick="flipCard(this)">
-                    <img src="https://images.unsplash.com/photo-1519741497674-611481863552?w=400" alt="纪念日">
-                    <div class="polaroid-caption">特别的纪念日 🎂</div>
-                    <div class="polaroid-back">
-                        <p>谢谢你愿意陪我这个笨蛋，走过一年又一年。爱你，不止今天。</p>
+                    <div class="photo-back">
+                        "哪怕无言相对，也觉得十分美好。"
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <!-- 场景三：星空连线时间轴 -->
-        <div class="container timeline-section">
-            <h2 class="section-title">爱的足迹</h2>
-            <div class="timeline-line"></div>
+        <!-- 互动区 -->
+        <section class="container interaction-area">
+            <div class="section-header" style="border:none; padding:0; text-align:center;">
+                <h2 class="section-title">A Letter to Future</h2>
+                <p class="section-desc">Write a wish for us</p>
+            </div>
             
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-content">
-                    <div class="timeline-date">2023.05.20</div>
-                    <h3 class="timeline-title">💌 第一封情书</h3>
-                    <p class="timeline-desc">鼓起勇气写下第一封信，手心全是汗，却只想把最好的都给你。</p>
-                </div>
+            <div class="input-group">
+                <input type="text" class="minimal-input" placeholder="在此刻，你想对未来的我们说什么？">
+                <button class="send-btn" onclick="sendWish()">SEND</button>
             </div>
-
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-content">
-                    <div class="timeline-date">2023.08.15</div>
-                    <h3 class="timeline-title">🌊 海边誓言</h3>
-                    <p class="timeline-desc">海浪声很大，但我说“喜欢你”的声音，希望你听得清清楚楚。</p>
-                </div>
-            </div>
-
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-content">
-                    <div class="timeline-date">2024.02.14</div>
-                    <h3 class="timeline-title">🌹 第一个情人节</h3>
-                    <p class="timeline-desc">玫瑰会枯萎，但想陪你过每一个情人节的心意，永不凋零。</p>
-                </div>
-            </div>
-
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-content">
-                    <div class="timeline-date">Future</div>
-                    <h3 class="timeline-title">🏡 未来的家</h3>
-                    <p class="timeline-desc">想象着我们一起装修房子，养一只猫，傍晚一起做饭...这就是我想要的生活。</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- 场景四：互动许愿瓶 -->
-        <div class="container wish-bottle-container">
-            <h2 class="section-title">给未来的我们</h2>
-            <p class="subtitle" style="margin-bottom: 30px;">写下一个愿望，把它存进我们的时光瓶里</p>
-            <button class="bottle-btn" onclick="openWishModal()">✨ 放入许愿瓶</button>
-        </div>
+        </section>
 
         <footer>
-            <p>Made with <span class="heart-beat">❤</span> for You</p>
-            <p>© 2024 Our Love Story. Forever & Always.</p>
+            <p>Made with <span class="heart-icon">❤</span> & Time</p>
+            <p>&copy; 2024 Our Exclusive Story</p>
         </footer>
     </div>
 
-    <!-- 许愿弹窗 -->
-    <div class="wish-modal" id="wishModal">
-        <div class="wish-card">
-            <span class="close-modal" onclick="closeWishModal()">&times;</span>
-            <h3 style="color: var(--accent-pink); margin-bottom: 15px;">🌟 时光许愿瓶</h3>
-            <p style="font-size: 0.9rem; color: #666;">亲爱的，你想和我们未来的自己说什么？</p>
-            <textarea class="wish-input" rows="4" placeholder="例如：希望明年的今天，我们已经在大理看苍山洱海了..."></textarea>
-            <button class="send-wish-btn" onclick="saveWish()">封存愿望</button>
-        </div>
-    </div>
-
     <script>
-        // ==================== 1. 信封开启逻辑 ====================
-        function openEnvelope() {
-            const envelope = document.getElementById('envelope');
-            const overlay = document.getElementById('intro-overlay');
-            const mainContent = document.getElementById('main-content');
+        // ==================== 1. 开场打字机与转场 ====================
+        const introText = "To my dearest, let's open our story...";
+        const typewriterElement = document.getElementById('typewriterText');
+        const introLayer = document.getElementById('intro-layer');
+        const mainContent = document.getElementById('main-content');
+        
+        let charIndex = 0;
 
-            if (!envelope.classList.contains('open')) {
-                envelope.classList.add('open');
-                
-                // 等待信封动画完成后淡出
+        function typeWriter() {
+            if (charIndex < introText.length) {
+                typewriterElement.textContent += introText.charAt(charIndex);
+                charIndex++;
+                setTimeout(typeWriter, 100); // 打字速度
+            } else {
+                // 打字完成后，停留一秒，然后移除遮罩
                 setTimeout(() => {
-                    overlay.style.opacity = '0';
-                    overlay.style.visibility = 'hidden';
-                    
-                    // 显示主内容
-                    mainContent.style.display = 'block';
-                    // 强制重绘以触发 transition
-                    setTimeout(() => {
-                        mainContent.style.opacity = '1';
-                        initStars(); // 启动星空
-                    }, 100);
-                }, 1200);
+                    introLayer.classList.add('slide-up');
+                    mainContent.classList.add('loaded');
+                    // 启动滚动观察器
+                    observeElements();
+                }, 1500);
             }
         }
 
-        // ==================== 2. 拍立得翻转逻辑 ====================
-        function flipCard(element) {
-            // 先翻回其他卡片（可选，如果想要互斥效果）
-            document.querySelectorAll('.polaroid').forEach(card => {
-                if (card !== element) card.classList.remove('flipped');
+        // 页面加载完成后启动
+        window.addEventListener('load', () => {
+            introLayer.classList.add('visible');
+            setTimeout(typeWriter, 800); // 稍微延迟开始打字
+        });
+
+        // ==================== 2. 自定义光标逻辑 ====================
+        const cursor = document.getElementById('cursor');
+        const cursorDot = document.getElementById('cursorDot');
+        
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+            
+            // 小点稍微滞后一点，增加流畅感
+            setTimeout(() => {
+                cursorDot.style.left = e.clientX + 'px';
+                cursorDot.style.top = e.clientY + 'px';
+            }, 50);
+        });
+
+        // 鼠标悬停效果
+        document.querySelectorAll('a, button, .gallery-item, .timeline-content').forEach(el => {
+            el.addEventListener('mouseenter', () => cursor.classList.add('hovered'));
+            el.addEventListener('mouseleave', () => cursor.classList.remove('hovered'));
+        });
+
+        // ==================== 3. 滚动触发动画 (Intersection Observer) ====================
+        function observeElements() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                    }
+                });
+            }, { threshold: 0.15 });
+
+            document.querySelectorAll('.timeline-item, .gallery-item').forEach(el => {
+                observer.observe(el);
             });
-            // 翻转当前卡片
+        }
+
+        // ==================== 4. 照片翻转逻辑 ====================
+        function flipPhoto(element) {
             element.classList.toggle('flipped');
         }
 
-        // ==================== 3. 滚动触发动画 (时间轴) ====================
-        const observerOptions = {
-            threshold: 0.2,
-            rootMargin: "0px"
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    // 可选：只触发一次
-                    // observer.unobserve(entry.target); 
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.timeline-item').forEach(item => {
-            observer.observe(item);
-        });
-
-        // ==================== 4. 唯美星空背景 (Canvas) ====================
-        function initStars() {
-            const canvas = document.getElementById('star-canvas');
-            const ctx = canvas.getContext('2d');
-            let width, height;
-            let stars = [];
-
-            function resize() {
-                width = window.innerWidth;
-                height = window.innerHeight;
-                canvas.width = width;
-                canvas.height = height;
-                createStars();
-            }
-
-            function createStars() {
-                stars = [];
-                const numStars = Math.floor((width * height) / 4000); // 密度控制
-                for (let i = 0; i < numStars; i++) {
-                    stars.push({
-                        x: Math.random() * width,
-                        y: Math.random() * height,
-                        radius: Math.random() * 1.5,
-                        alpha: Math.random(),
-                        speed: Math.random() * 0.05 + 0.01
-                    });
-                }
-            }
-
-            function animate() {
-                ctx.clearRect(0, 0, width, height);
-                ctx.fillStyle = "#0f172a"; // 背景色覆盖（可选，如果 body 有背景可省略）
-                
-                stars.forEach(star => {
-                    ctx.beginPath();
-                    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
-                    ctx.fill();
-
-                    // 闪烁效果
-                    star.alpha += (Math.random() - 0.5) * 0.05;
-                    if (star.alpha < 0.1) star.alpha = 0.1;
-                    if (star.alpha > 0.8) star.alpha = 0.8;
-
-                    // 缓慢移动
-                    star.y -= star.speed;
-                    if (star.y < 0) star.y = height;
-                });
-
-                requestAnimationFrame(animate);
-            }
-
-            window.addEventListener('resize', resize);
-            resize();
-            animate();
-        }
-
-        // ==================== 5. 许愿瓶逻辑 ====================
-        const modal = document.getElementById('wishModal');
-
-        function openWishModal() {
-            modal.classList.add('active');
-        }
-
-        function closeWishModal() {
-            modal.classList.remove('active');
-        }
-
-        function saveWish() {
-            const input = document.querySelector('.wish-input');
-            const text = input.value.trim();
+        // ==================== 5. 发送愿望交互 ====================
+        function sendWish() {
+            const input = document.querySelector('.minimal-input');
+            const btn = document.querySelector('.send-btn');
             
-            if (!text) {
-                alert("请先写下你的愿望哦~");
-                return;
-            }
+            if (!input.value.trim()) return;
 
-            // 模拟保存
-            const btn = document.querySelector('.send-wish-btn');
             const originalText = btn.innerText;
-            btn.innerText = "✨ 已封存 ...";
-            btn.disabled = true;
-
-            // 产生粒子特效
-            createParticles(window.innerWidth / 2, window.innerHeight / 2);
-
+            btn.innerText = "SENT ✨";
+            btn.style.borderColor = "#fff";
+            btn.style.color = "#fff";
+            
+            // 简单的粒子爆发效果（可选，保持极简可省略）
+            input.value = "";
+            
             setTimeout(() => {
-                closeWishModal();
-                input.value = "";
                 btn.innerText = originalText;
-                btn.disabled = false;
-                alert("愿望已存入我们的时光瓶，未来一定会实现！💕");
-            }, 1500);
-        }
-
-        // 关闭弹窗点击外部
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeWishModal();
-        });
-
-        // ==================== 6. 粒子特效辅助函数 ====================
-        function createParticles(x, y) {
-            const colors = ['#f472b6', '#fbbf24', '#ffffff'];
-            for (let i = 0; i < 30; i++) {
-                const particle = document.createElement('div');
-                particle.classList.add('floating-particle');
-                document.body.appendChild(particle);
-
-                const size = Math.random() * 8 + 4;
-                const destX = (Math.random() - 0.5) * 200;
-                const destY = (Math.random() - 0.5) * 200;
-                
-                particle.style.width = `${size}px`;
-                particle.style.height = `${size}px`;
-                particle.style.left = `${x}px`;
-                particle.style.top = `${y}px`;
-                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
-                particle.style.transition = 'all 1s ease-out';
-                
-                // 强制重绘
-                setTimeout(() => {
-                    particle.style.transform = `translate(${destX}px, ${destY}px)`;
-                    particle.style.opacity = 0;
-                }, 10);
-
-                setTimeout(() => {
-                    particle.remove();
-                }, 1000);
-            }
+                btn.style.borderColor = "";
+                btn.style.color = "";
+                alert("Your wish has been sealed in time. 💌");
+            }, 2000);
         }
     </script>
 </body>
