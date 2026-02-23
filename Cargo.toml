@@ -33,6 +33,7 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "mysql", "postgres
 
 # 非关系型数据库
 redis = { version = "0.28", features = ["tokio-comp", "connection-manager"] }
+mongodb = "3.2"
 
 # 参数校验
 validator = { version = "0.20", features = ["derive"] }

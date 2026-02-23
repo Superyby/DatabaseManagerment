@@ -11,6 +11,7 @@ use common::models::connection::{ConnectionConfig, DbType};
 use common::models::monitor::{
     ConnectionPoolStats, DatabaseInfo, DatabaseStats, MonitorOverview, ProcessInfo,
 };
+use mongodb::bson::doc;
 use redis::aio::ConnectionManager as RedisConnectionManager;
 use sqlx::{mysql::MySqlPoolOptions, mysql::MySqlRow, postgres::PgPoolOptions, sqlite::SqlitePoolOptions, Row};
 use sqlx::{MySqlPool, PgPool, SqlitePool};
@@ -83,6 +84,8 @@ pub enum DatabasePool {
     SQLite(SqlitePool),
     /// Redis connection manager.
     Redis(RedisConnectionManager),
+    /// MongoDB client.
+    MongoDB(mongodb::Client),
     /// Unsupported database type.
     Unsupported,
 }
@@ -253,6 +256,21 @@ impl PoolManager {
                     .map_err(|e| AppError::RedisConnection(e.to_string()))?;
                 Ok(DatabasePool::Redis(manager))
             }
+            DbType::MongoDB => {
+                let url = self.build_mongodb_url(config)?;
+                let options = mongodb::options::ClientOptions::parse(&url)
+                    .await
+                    .map_err(|e| AppError::DatabaseConnection(e.to_string()))?;
+                let client = mongodb::Client::with_options(options)
+                    .map_err(|e| AppError::DatabaseConnection(e.to_string()))?;
+                // Verify connection by pinging
+                client
+                    .database("admin")
+                    .run_command(doc! { "ping": 1 })
+                    .await
+                    .map_err(|e| AppError::DatabaseConnection(e.to_string()))?;
+                Ok(DatabasePool::MongoDB(client))
+            }
             _ => Ok(DatabasePool::Unsupported)
         }
     }
@@ -306,6 +324,13 @@ impl PoolManager {
                     .query_async::<String>(&mut conn)
                     .await
                     .map_err(|e| AppError::RedisOperation(e.to_string()))?;
+            }
+            DatabasePool::MongoDB(client) => {
+                client
+                    .database("admin")
+                    .run_command(doc! { "ping": 1 })
+                    .await
+                    .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
             }
             DatabasePool::Unsupported => {
                 return Err(AppError::UnsupportedDatabaseType("Connection type not supported yet".into()));
@@ -423,6 +448,21 @@ impl PoolManager {
         }
     }
 
+    fn build_mongodb_url(&self, config: &ConnectionConfig) -> AppResult<String> {
+        let host = config
+            .host
+            .as_deref()
+            .ok_or_else(|| AppError::Validation("MongoDB requires host".into()))?;
+        let port = config.port.unwrap_or(27017);
+
+        let auth = match (&config.username, &config.password) {
+            (Some(user), Some(pass)) if !user.is_empty() => format!("{}:{}@", user, pass),
+            _ => String::new(),
+        };
+        let db = config.database.as_deref().unwrap_or("");
+        Ok(format!("mongodb://{}{}:{}/{}", auth, host, port, db))
+    }
+
     // ============== Monitoring Methods ==============
 
     /// Gets the connection pool stats for a given connection.
@@ -452,6 +492,12 @@ impl PoolManager {
                     active: 1,
                     idle: 0,
                     max_size: 1,
+                    is_connected: true,
+                }),
+                DatabasePool::MongoDB(_) => Ok(ConnectionPoolStats {
+                    active: 1,
+                    idle: 0,
+                    max_size: self.config.max_connections,
                     is_connected: true,
                 }),
                 DatabasePool::Unsupported => Ok(ConnectionPoolStats {
@@ -485,6 +531,7 @@ impl PoolManager {
                 ..Default::default()
             }),
             DatabasePool::Redis(manager) => self.get_redis_stats(manager).await,
+            DatabasePool::MongoDB(client) => self.get_mongodb_stats(client).await,
             DatabasePool::Unsupported => Err(AppError::UnsupportedDatabaseType(
                 "Monitoring not supported".into(),
             )),
@@ -515,6 +562,7 @@ impl PoolManager {
         match pool {
             DatabasePool::MySQL(p) => self.get_mysql_databases(p).await,
             DatabasePool::Postgres(p) => self.get_postgres_databases(p).await,
+            DatabasePool::MongoDB(client) => self.get_mongodb_databases(client).await,
             _ => Ok(vec![]),
         }
     }
@@ -835,5 +883,92 @@ impl PoolManager {
         }
 
         Ok(stats)
+    }
+
+    // ============== MongoDB Monitoring ==============
+
+    async fn get_mongodb_stats(
+        &self,
+        client: &mongodb::Client,
+    ) -> AppResult<DatabaseStats> {
+        let db = client.database("admin");
+        let result = db
+            .run_command(doc! { "serverStatus": 1 })
+            .await
+            .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
+
+        let mut stats = DatabaseStats::default();
+
+        // Server version
+        if let Some(v) = result.get_str("version").ok() {
+            stats.server_version = Some(format!("MongoDB {}", v));
+        }
+
+        // Uptime
+        if let Some(up) = result.get_f64("uptime").ok() {
+            stats.uptime_seconds = up as u64;
+        }
+
+        // Connections
+        if let Some(conns) = result.get_document("connections").ok() {
+            stats.active_connections = conns.get_i32("current").unwrap_or(0) as u32;
+            stats.max_connections = conns.get_i32("available").unwrap_or(0) as u32
+                + stats.active_connections;
+        }
+
+        // Operations (opcounters)
+        if let Some(ops) = result.get_document("opcounters").ok() {
+            let insert = ops.get_i64("insert").or(ops.get_i32("insert").map(|v| v as i64)).unwrap_or(0);
+            let query = ops.get_i64("query").or(ops.get_i32("query").map(|v| v as i64)).unwrap_or(0);
+            let update = ops.get_i64("update").or(ops.get_i32("update").map(|v| v as i64)).unwrap_or(0);
+            let delete = ops.get_i64("delete").or(ops.get_i32("delete").map(|v| v as i64)).unwrap_or(0);
+            stats.total_queries = (insert + query + update + delete) as u64;
+        }
+
+        // Memory
+        if let Some(mem) = result.get_document("mem").ok() {
+            let resident_mb = mem.get_i32("resident").unwrap_or(0) as u64;
+            stats.buffer_pool_size = Some(resident_mb * 1024 * 1024); // MB -> bytes
+        }
+
+        if stats.uptime_seconds > 0 {
+            stats.queries_per_second =
+                stats.total_queries as f64 / stats.uptime_seconds as f64;
+        }
+
+        Ok(stats)
+    }
+
+    async fn get_mongodb_databases(
+        &self,
+        client: &mongodb::Client,
+    ) -> AppResult<Vec<DatabaseInfo>> {
+        let db_names = client
+            .list_database_names()
+            .await
+            .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
+
+        let mut databases = Vec::new();
+        for name in db_names {
+            let db = client.database(&name);
+            let stats_result = db.run_command(doc! { "dbStats": 1 }).await;
+            let size_mb = match stats_result {
+                Ok(doc) => {
+                    let data_size = doc.get_f64("dataSize")
+                        .or(doc.get_i64("dataSize").map(|v| v as f64))
+                        .or(doc.get_i32("dataSize").map(|v| v as f64))
+                        .unwrap_or(0.0);
+                    data_size / 1024.0 / 1024.0
+                }
+                Err(_) => 0.0,
+            };
+            databases.push(DatabaseInfo {
+                name: name.clone(),
+                size_mb,
+                tables_count: 0,
+            });
+        }
+
+        Ok(databases)
     }
 }

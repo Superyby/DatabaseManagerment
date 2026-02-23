@@ -40,14 +40,14 @@ pub async fn health_check() -> Json<HealthResponse> {
 pub async fn aggregated_health(
     State(state): State<AppState>,
 ) -> Json<AggregatedHealth> {
-    // Check all services concurrently instead of sequentially
-    let (conn_health, query_health, ai_health) = tokio::join!(
+    // Only check core services (connection-service + query-service)
+    // ai-service is optional and excluded from health checks
+    let (conn_health, query_health) = tokio::join!(
         check_service_health(&state.http_client, "connection-service", &state.service_urls.connection_service),
         check_service_health(&state.http_client, "query-service", &state.service_urls.query_service),
-        check_service_health(&state.http_client, "ai-service", &state.service_urls.ai_service),
     );
 
-    let services = vec![conn_health, query_health, ai_health];
+    let services = vec![conn_health, query_health];
 
     let all_healthy = services.iter().all(|s| s.healthy);
 

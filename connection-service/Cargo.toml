@@ -31,6 +31,7 @@ serde_json = { workspace = true }
 # 数据库
 sqlx = { workspace = true }
 redis = { workspace = true }
+mongodb = { workspace = true }
 
 # 参数校验
 validator = { workspace = true }
