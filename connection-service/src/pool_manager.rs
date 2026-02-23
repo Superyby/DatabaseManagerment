@@ -12,7 +12,7 @@ use common::models::monitor::{
     ConnectionPoolStats, DatabaseInfo, DatabaseStats, MonitorOverview, ProcessInfo,
 };
 use redis::aio::ConnectionManager as RedisConnectionManager;
-use sqlx::{mysql::MySqlPoolOptions, postgres::PgPoolOptions, sqlite::SqlitePoolOptions, Row};
+use sqlx::{mysql::MySqlPoolOptions, mysql::MySqlRow, postgres::PgPoolOptions, sqlite::SqlitePoolOptions, Row};
 use sqlx::{MySqlPool, PgPool, SqlitePool};
 use tokio::sync::RwLock;
 
@@ -388,7 +388,7 @@ impl PoolManager {
         let database = config.database.as_deref().unwrap_or("");
 
         Ok(format!(
-            "mysql://{}:{}@{}:{}/{}",
+            "mysql://{}:{}@{}:{}/{}?charset=utf8mb4",
             username, password, host, port, database
         ))
     }
@@ -541,6 +541,28 @@ impl PoolManager {
 
     // ---- MySQL monitoring helpers ----
 
+    /// Robustly extract a String from a MySQL row.
+    /// Falls back to reading raw bytes if the String decode fails (e.g. binary collation).
+    fn mysql_get_string(row: &MySqlRow, col: &str) -> String {
+        row.try_get::<String, _>(col)
+            .unwrap_or_else(|_| {
+                row.try_get::<Vec<u8>, _>(col)
+                    .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
+                    .unwrap_or_default()
+            })
+    }
+
+    /// Robustly extract an optional String from a MySQL row.
+    fn mysql_get_opt_string(row: &MySqlRow, col: &str) -> Option<String> {
+        row.try_get::<Option<String>, _>(col)
+            .unwrap_or_else(|_| {
+                row.try_get::<Option<Vec<u8>>, _>(col)
+                    .ok()
+                    .flatten()
+                    .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
+            })
+    }
+
     async fn get_mysql_stats(&self, pool: &MySqlPool) -> AppResult<DatabaseStats> {
         let mut stats = DatabaseStats::default();
 
@@ -551,8 +573,8 @@ impl PoolManager {
             .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
 
         for row in &rows {
-            let name: String = row.try_get("Variable_name").unwrap_or_default();
-            let value: String = row.try_get("Value").unwrap_or_default();
+            let name: String = Self::mysql_get_string(row, "Variable_name");
+            let value: String = Self::mysql_get_string(row, "Value");
             match name.as_str() {
                 "Uptime" => stats.uptime_seconds = value.parse().unwrap_or(0),
                 "Questions" | "Queries" => {
@@ -582,8 +604,8 @@ impl PoolManager {
             .unwrap_or_default();
 
         for row in &vars {
-            let name: String = row.try_get("Variable_name").unwrap_or_default();
-            let value: String = row.try_get("Value").unwrap_or_default();
+            let name: String = Self::mysql_get_string(row, "Variable_name");
+            let value: String = Self::mysql_get_string(row, "Value");
             match name.as_str() {
                 "max_connections" => stats.max_connections = value.parse().unwrap_or(0),
                 "version" => stats.server_version = Some(format!("MySQL {}", value)),
@@ -600,22 +622,26 @@ impl PoolManager {
     }
 
     async fn get_mysql_processes(&self, pool: &MySqlPool) -> AppResult<Vec<ProcessInfo>> {
-        let rows = sqlx::query("SHOW PROCESSLIST")
-            .fetch_all(pool)
-            .await
-            .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
+        let rows = sqlx::query(
+            "SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO
+             FROM information_schema.PROCESSLIST
+             ORDER BY TIME DESC"
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
 
         let mut processes = Vec::new();
         for row in &rows {
             processes.push(ProcessInfo {
-                id: row.try_get::<u64, _>("Id").unwrap_or(0),
-                user: row.try_get::<String, _>("User").unwrap_or_default(),
-                host: row.try_get::<String, _>("Host").unwrap_or_default(),
-                db: row.try_get::<Option<String>, _>("db").unwrap_or(None),
-                command: row.try_get::<String, _>("Command").unwrap_or_default(),
-                time: row.try_get::<u32, _>("Time").unwrap_or(0) as u64,
-                state: row.try_get::<Option<String>, _>("State").unwrap_or(None),
-                info: row.try_get::<Option<String>, _>("Info").unwrap_or(None),
+                id: row.try_get::<u64, _>("ID").unwrap_or(0),
+                user: Self::mysql_get_string(row, "USER"),
+                host: Self::mysql_get_string(row, "HOST"),
+                db: Self::mysql_get_opt_string(row, "DB"),
+                command: Self::mysql_get_string(row, "COMMAND"),
+                time: row.try_get::<i32, _>("TIME").unwrap_or(0) as u64,
+                state: Self::mysql_get_opt_string(row, "STATE"),
+                info: Self::mysql_get_opt_string(row, "INFO"),
             });
         }
         Ok(processes)
@@ -624,9 +650,9 @@ impl PoolManager {
     async fn get_mysql_databases(&self, pool: &MySqlPool) -> AppResult<Vec<DatabaseInfo>> {
         let rows = sqlx::query(
             "SELECT 
-                s.SCHEMA_NAME as name,
+                s.SCHEMA_NAME,
                 COUNT(t.TABLE_NAME) as tables_count,
-                COALESCE(SUM(t.DATA_LENGTH + t.INDEX_LENGTH) / 1024 / 1024, 0) as size_mb
+                CAST(COALESCE(SUM(t.DATA_LENGTH + t.INDEX_LENGTH) / 1024 / 1024, 0) AS DOUBLE) as size_mb
              FROM information_schema.SCHEMATA s
              LEFT JOIN information_schema.TABLES t ON s.SCHEMA_NAME = t.TABLE_SCHEMA
              GROUP BY s.SCHEMA_NAME
@@ -639,7 +665,7 @@ impl PoolManager {
         let mut databases = Vec::new();
         for row in &rows {
             databases.push(DatabaseInfo {
-                name: row.try_get::<String, _>("name").unwrap_or_default(),
+                name: Self::mysql_get_string(row, "SCHEMA_NAME"),
                 tables_count: row.try_get::<i64, _>("tables_count").unwrap_or(0) as u32,
                 size_mb: row.try_get::<f64, _>("size_mb").unwrap_or(0.0),
             });

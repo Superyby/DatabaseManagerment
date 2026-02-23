@@ -40,11 +40,14 @@ pub async fn health_check() -> Json<HealthResponse> {
 pub async fn aggregated_health(
     State(state): State<AppState>,
 ) -> Json<AggregatedHealth> {
-    let services = vec![
-        check_service_health(&state.http_client, "connection-service", &state.service_urls.connection_service).await,
-        check_service_health(&state.http_client, "query-service", &state.service_urls.query_service).await,
-        check_service_health(&state.http_client, "ai-service", &state.service_urls.ai_service).await,
-    ];
+    // Check all services concurrently instead of sequentially
+    let (conn_health, query_health, ai_health) = tokio::join!(
+        check_service_health(&state.http_client, "connection-service", &state.service_urls.connection_service),
+        check_service_health(&state.http_client, "query-service", &state.service_urls.query_service),
+        check_service_health(&state.http_client, "ai-service", &state.service_urls.ai_service),
+    );
+
+    let services = vec![conn_health, query_health, ai_health];
 
     let all_healthy = services.iter().all(|s| s.healthy);
 
@@ -62,7 +65,10 @@ async fn check_service_health(
 ) -> ServiceHealth {
     let health_url = format!("{}/api/health", url);
     
-    match client.get(&health_url).send().await {
+    // Use a short timeout for health checks so the aggregated endpoint responds quickly
+    match client.get(&health_url)
+        .timeout(std::time::Duration::from_secs(3))
+        .send().await {
         Ok(response) if response.status().is_success() => ServiceHealth {
             name: name.to_string(),
             url: url.to_string(),
