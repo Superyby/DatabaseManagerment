@@ -1,3 +1,5 @@
 target
 .idea
 go-version
+conn-error.log
+conn-service.log
