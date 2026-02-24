@@ -1,5 +1,4 @@
 # 新年快乐🥳
-# 初四快乐
 
 # DatabaseManager
 
