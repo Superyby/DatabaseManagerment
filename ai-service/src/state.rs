@@ -28,12 +28,12 @@ impl Default for AiConfig {
     fn default() -> Self {
         Self {
             llm_base_url: std::env::var("LLM_BASE_URL")
-                .unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
+                .unwrap_or_else(|_| "https://api.deepseek.com/v1".to_string()),
             llm_api_key: std::env::var("LLM_API_KEY").unwrap_or_default(),
             default_model: std::env::var("LLM_DEFAULT_MODEL")
-                .unwrap_or_else(|_| "gpt-4o-mini".to_string()),
+                .unwrap_or_else(|_| "deepseek-chat".to_string()),
             high_precision_model: std::env::var("LLM_HIGH_PRECISION_MODEL")
-                .unwrap_or_else(|_| "gpt-4o".to_string()),
+                .unwrap_or_else(|_| "deepseek-chat".to_string()),
             max_tokens: std::env::var("LLM_MAX_TOKENS")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -69,7 +69,10 @@ impl AppState {
             config,
             ai_config: AiConfig::default(),
             service_urls: ServiceUrls::load(),
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(60))
+                .build()
+                .unwrap_or_default(),
         }
     }
 }

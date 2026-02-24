@@ -4,7 +4,6 @@ use axum::{extract::State, Json};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 use common::errors::AppError;
 use common::response::ApiResponse;

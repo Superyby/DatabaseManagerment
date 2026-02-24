@@ -1,6 +1,6 @@
 //! 连接服务路由模块
 
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use crate::handlers;
 use crate::state::AppState;
 
@@ -12,6 +12,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/connections/{id}/test", get(handlers::test_connection))
         .route("/api/connections/{id}/stats", get(handlers::get_connection_stats))
         .route("/api/connections/{id}/databases", get(handlers::get_connection_databases))
+        .route("/api/connections/{id}/schema", get(handlers::get_connection_schema))
+        .route("/api/connections/{id}/query", post(handlers::execute_query))
         .route("/api/connections/{id}/processes", get(handlers::get_connection_processes))
         .route("/api/health", get(handlers::health_check))
         .route("/internal/pools/{id}", get(handlers::get_pool_info))

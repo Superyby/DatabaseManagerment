@@ -10,7 +10,9 @@ use utoipa::ToSchema;
 
 use common::errors::AppError;
 use common::models::connection::{ConnectionItem, CreateConnectionRequest};
+use common::models::database::TableSchema;
 use common::models::monitor::{DatabaseInfo, MonitorOverview, ProcessInfo};
+use common::models::query::QueryResult;
 use common::response::ApiResponse;
 use crate::service::{ConnectionService, ConnectionServiceTrait};
 use crate::state::AppState;
@@ -253,6 +255,56 @@ pub async fn get_connection_databases(
 ) -> Result<Json<ApiResponse<Vec<DatabaseInfo>>>, AppError> {
     let databases = state.pool_manager.get_databases(&id).await?;
     Ok(Json(ApiResponse::ok_with_service(databases, "connection-service")))
+}
+
+/// 获取连接的数据库表结构（供 AI 服务使用）
+pub async fn get_connection_schema(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<TableSchema>>, AppError> {
+    let schema = state.pool_manager.get_table_schema(&id).await?;
+    Ok(Json(ApiResponse::ok_with_service(schema, "connection-service")))
+}
+
+/// 执行 SQL 查询
+#[derive(serde::Deserialize)]
+pub struct ExecuteQueryBody {
+    pub sql: String,
+    #[serde(default = "default_limit")]
+    pub limit: u32,
+}
+
+fn default_limit() -> u32 {
+    1000
+}
+
+pub async fn execute_query(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<ExecuteQueryBody>,
+) -> Result<Json<ApiResponse<QueryResult>>, AppError> {
+    // 基础安全检查：禁止写操作（使用词边界匹配避免误判）
+    let sql_trimmed = body.sql.trim();
+    let sql_upper = sql_trimmed.to_uppercase();
+
+    // 检查 SQL 语句是否以危险关键词开头（忽略前导空白和注释）
+    let sql_no_comment = sql_upper
+        .trim_start_matches(|c: char| c.is_whitespace())
+        .trim_start_matches("--")
+        .trim_start();
+    let dangerous_starts = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE"];
+    for kw in dangerous_starts {
+        if sql_no_comment.starts_with(kw) {
+            // 确认是完整关键词（后面是空格、括号或行尾）
+            let rest = &sql_no_comment[kw.len()..];
+            if rest.is_empty() || rest.starts_with(|c: char| c.is_whitespace() || c == '(' || c == ';') {
+                return Err(AppError::InvalidInput(format!("不允许执行 {} 操作，仅支持只读查询", kw)));
+            }
+        }
+    }
+
+    let result = state.pool_manager.execute_query(&id, &body.sql, body.limit).await?;
+    Ok(Json(ApiResponse::ok_with_service(result, "connection-service")))
 }
 
 /// 获取连接上的活跃进程

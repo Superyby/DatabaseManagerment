@@ -44,3 +44,37 @@ impl DatabaseItem {
         }
     }
 }
+
+/// Database table schema (for AI context).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TableSchema {
+    /// Database name.
+    pub database: String,
+    /// Database type.
+    pub db_type: String,
+    /// Tables in the database.
+    pub tables: Vec<TableInfo>,
+}
+
+/// Table information with columns.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TableInfo {
+    /// Table name.
+    pub name: String,
+    /// Columns in this table.
+    pub columns: Vec<ColumnDetail>,
+}
+
+/// Column detail information.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ColumnDetail {
+    /// Column name.
+    pub name: String,
+    /// Data type (e.g., "int", "varchar(255)").
+    pub data_type: String,
+    /// Whether the column is nullable.
+    pub nullable: bool,
+    /// Key type (e.g., "PRI", "UNI", "MUL").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+}

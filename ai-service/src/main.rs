@@ -58,6 +58,9 @@ struct ApiDoc;
 
 #[tokio::main]
 async fn main() {
+    // 加载 .env 文件
+    load_dotenv();
+
     // 初始化日志追踪
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
@@ -105,4 +108,25 @@ fn create_router(state: AppState) -> Router {
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
+}
+
+fn load_dotenv() {
+    let env_path = std::path::Path::new(".env");
+    if env_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(env_path) {
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                if let Some((key, value)) = line.split_once('=') {
+                    let key = key.trim();
+                    let value = value.trim();
+                    if std::env::var(key).is_err() {
+                        std::env::set_var(key, value);
+                    }
+                }
+            }
+        }
+    }
 }

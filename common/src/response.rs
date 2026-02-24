@@ -3,7 +3,7 @@
 //! Provides a unified response format for all API endpoints.
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 /// 响应状态码常量
@@ -110,7 +110,7 @@ pub mod code {
 /// Standard API response wrapper.
 ///
 /// All API endpoints return responses in this format for consistency.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ApiResponse<T: Serialize> {
     /// 响应状态码（200=成功，400=参数错误，404=未找到，500=服务器错误，700=业务异常）
     pub code: i32,
@@ -134,7 +134,7 @@ pub struct ApiResponse<T: Serialize> {
 }
 
 /// API error details.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ApiError {
     /// Error code for client handling (e.g., "VALIDATION_ERROR", "NOT_FOUND").
     pub code: String,
@@ -148,7 +148,7 @@ pub struct ApiError {
 }
 
 /// Response metadata.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ResponseMeta {
     /// Request ID for tracing.
     #[serde(skip_serializing_if = "Option::is_none")]

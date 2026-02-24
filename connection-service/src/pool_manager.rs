@@ -8,12 +8,14 @@ use std::time::Duration;
 use common::config::AppConfig;
 use common::errors::{AppError, AppResult};
 use common::models::connection::{ConnectionConfig, DbType};
+use common::models::database::{ColumnDetail, TableInfo, TableSchema};
 use common::models::monitor::{
     ConnectionPoolStats, DatabaseInfo, DatabaseStats, MonitorOverview, ProcessInfo,
 };
+use common::models::query::{ColumnInfo, QueryResult};
 use mongodb::bson::doc;
 use redis::aio::ConnectionManager as RedisConnectionManager;
-use sqlx::{mysql::MySqlPoolOptions, mysql::MySqlRow, postgres::PgPoolOptions, sqlite::SqlitePoolOptions, Row};
+use sqlx::{mysql::MySqlPoolOptions, mysql::MySqlRow, postgres::PgPoolOptions, postgres::PgRow, sqlite::SqlitePoolOptions, Row, Column, TypeInfo};
 use sqlx::{MySqlPool, PgPool, SqlitePool};
 use tokio::sync::RwLock;
 
@@ -836,6 +838,338 @@ impl PoolManager {
         Ok(databases)
     }
 
+    // ============== Query Execution ==============
+
+    /// Executes a SQL query against a connection and returns results.
+    pub async fn execute_query(&self, id: &str, sql: &str, limit: u32) -> AppResult<QueryResult> {
+        let start = std::time::Instant::now();
+
+        let pools = self.pools.read().await;
+        let pool = pools
+            .get(id)
+            .ok_or_else(|| AppError::ConnectionNotFound(id.to_string()))?;
+
+        match pool {
+            DatabasePool::MySQL(p) => self.execute_mysql_query(p, sql, limit, start).await,
+            DatabasePool::Postgres(p) => self.execute_postgres_query(p, sql, limit, start).await,
+            _ => Err(AppError::UnsupportedDatabaseType(
+                "SQL query execution is only supported for MySQL and PostgreSQL".to_string(),
+            )),
+        }
+    }
+
+    async fn execute_mysql_query(
+        &self,
+        pool: &MySqlPool,
+        sql: &str,
+        limit: u32,
+        start: std::time::Instant,
+    ) -> AppResult<QueryResult> {
+        // Safety: add LIMIT if not present
+        let sql = Self::ensure_limit(sql, limit);
+
+        let rows: Vec<MySqlRow> = sqlx::query(&sql)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
+
+        let execution_time_ms = start.elapsed().as_millis() as u64;
+
+        // Extract column info
+        let columns: Vec<ColumnInfo> = if let Some(first) = rows.first() {
+            first
+                .columns()
+                .iter()
+                .map(|c| ColumnInfo {
+                    name: c.name().to_string(),
+                    data_type: c.type_info().to_string(),
+                    nullable: None,
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
+        // Extract row data
+        let mut result_rows = Vec::new();
+        for row in &rows {
+            let mut values = Vec::new();
+            for idx in 0..row.columns().len() {
+                values.push(Self::mysql_value_to_json(row, idx));
+            }
+            result_rows.push(values);
+        }
+
+        let row_count = result_rows.len();
+        Ok(QueryResult {
+            columns,
+            rows: result_rows,
+            row_count,
+            affected_rows: None,
+            execution_time_ms,
+        })
+    }
+
+    async fn execute_postgres_query(
+        &self,
+        pool: &PgPool,
+        sql: &str,
+        limit: u32,
+        start: std::time::Instant,
+    ) -> AppResult<QueryResult> {
+        let sql = Self::ensure_limit(sql, limit);
+
+        let rows: Vec<PgRow> = sqlx::query(&sql)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
+
+        let execution_time_ms = start.elapsed().as_millis() as u64;
+
+        let columns: Vec<ColumnInfo> = if let Some(first) = rows.first() {
+            first
+                .columns()
+                .iter()
+                .map(|c| ColumnInfo {
+                    name: c.name().to_string(),
+                    data_type: c.type_info().to_string(),
+                    nullable: None,
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
+        let mut result_rows = Vec::new();
+        for row in &rows {
+            let mut values = Vec::new();
+            for idx in 0..row.columns().len() {
+                values.push(Self::pg_value_to_json(row, idx));
+            }
+            result_rows.push(values);
+        }
+
+        let row_count = result_rows.len();
+        Ok(QueryResult {
+            columns,
+            rows: result_rows,
+            row_count,
+            affected_rows: None,
+            execution_time_ms,
+        })
+    }
+
+    /// Convert a MySQL row value at index to JSON
+    fn mysql_value_to_json(row: &MySqlRow, idx: usize) -> serde_json::Value {
+        // Try i64
+        if let Ok(v) = row.try_get::<Option<i64>, _>(idx) {
+            return match v {
+                Some(n) => serde_json::Value::Number(n.into()),
+                None => serde_json::Value::Null,
+            };
+        }
+        // Try f64
+        if let Ok(v) = row.try_get::<Option<f64>, _>(idx) {
+            return match v {
+                Some(n) => serde_json::Number::from_f64(n)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::String(n.to_string())),
+                None => serde_json::Value::Null,
+            };
+        }
+        // Try String
+        if let Ok(v) = row.try_get::<Option<String>, _>(idx) {
+            return match v {
+                Some(s) => serde_json::Value::String(s),
+                None => serde_json::Value::Null,
+            };
+        }
+        // Try bytes as hex
+        if let Ok(v) = row.try_get::<Option<Vec<u8>>, _>(idx) {
+            return match v {
+                Some(b) => serde_json::Value::String(format!("0x{}", hex_encode(&b))),
+                None => serde_json::Value::Null,
+            };
+        }
+        serde_json::Value::Null
+    }
+
+    /// Convert a Postgres row value at index to JSON
+    fn pg_value_to_json(row: &PgRow, idx: usize) -> serde_json::Value {
+        if let Ok(v) = row.try_get::<Option<i64>, _>(idx) {
+            return match v {
+                Some(n) => serde_json::Value::Number(n.into()),
+                None => serde_json::Value::Null,
+            };
+        }
+        if let Ok(v) = row.try_get::<Option<i32>, _>(idx) {
+            return match v {
+                Some(n) => serde_json::Value::Number(n.into()),
+                None => serde_json::Value::Null,
+            };
+        }
+        if let Ok(v) = row.try_get::<Option<f64>, _>(idx) {
+            return match v {
+                Some(n) => serde_json::Number::from_f64(n)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::String(n.to_string())),
+                None => serde_json::Value::Null,
+            };
+        }
+        if let Ok(v) = row.try_get::<Option<bool>, _>(idx) {
+            return match v {
+                Some(b) => serde_json::Value::Bool(b),
+                None => serde_json::Value::Null,
+            };
+        }
+        if let Ok(v) = row.try_get::<Option<String>, _>(idx) {
+            return match v {
+                Some(s) => serde_json::Value::String(s),
+                None => serde_json::Value::Null,
+            };
+        }
+        serde_json::Value::Null
+    }
+
+    /// Ensure SQL has a LIMIT clause
+    fn ensure_limit(sql: &str, limit: u32) -> String {
+        let upper = sql.to_uppercase();
+        if upper.contains("LIMIT") {
+            return sql.to_string();
+        }
+        
+        // 移除末尾空白和分号，确保添加 LIMIT 时有空格分隔
+        let trimmed = sql.trim_end().trim_end_matches(';');
+        if trimmed.is_empty() {
+            return sql.to_string();
+        }
+        
+        format!("{} LIMIT {}", trimmed, limit)
+    }
+
+    // ============== Schema Methods ==============
+
+    /// Gets table schema for a connection (for AI context).
+    pub async fn get_table_schema(&self, id: &str) -> AppResult<TableSchema> {
+        let config = self
+            .get_connection(id)
+            .await
+            .ok_or_else(|| AppError::ConnectionNotFound(id.to_string()))?;
+
+        let pools = self.pools.read().await;
+        let pool = pools
+            .get(id)
+            .ok_or_else(|| AppError::ConnectionNotFound(id.to_string()))?;
+
+        let database_name = config.database.clone().unwrap_or_default();
+
+        let tables = match pool {
+            DatabasePool::MySQL(p) => self.get_mysql_table_schema(p, &database_name).await?,
+            DatabasePool::Postgres(p) => self.get_postgres_table_schema(p).await?,
+            _ => vec![],
+        };
+
+        Ok(TableSchema {
+            database: database_name,
+            db_type: config.db_type.to_string(),
+            tables,
+        })
+    }
+
+    async fn get_mysql_table_schema(
+        &self,
+        pool: &MySqlPool,
+        database: &str,
+    ) -> AppResult<Vec<TableInfo>> {
+        let rows = sqlx::query(
+            "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = ?
+             ORDER BY TABLE_NAME, ORDINAL_POSITION
+             LIMIT 500",
+        )
+        .bind(database)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
+
+        let mut tables: Vec<TableInfo> = Vec::new();
+        let mut current_table: Option<String> = None;
+
+        for row in &rows {
+            let table_name: String = Self::mysql_get_string(row, "TABLE_NAME");
+            let col = ColumnDetail {
+                name: Self::mysql_get_string(row, "COLUMN_NAME"),
+                data_type: Self::mysql_get_string(row, "COLUMN_TYPE"),
+                nullable: Self::mysql_get_string(row, "IS_NULLABLE") == "YES",
+                key: {
+                    let k = Self::mysql_get_string(row, "COLUMN_KEY");
+                    if k.is_empty() { None } else { Some(k) }
+                },
+            };
+
+            if current_table.as_deref() != Some(&table_name) {
+                current_table = Some(table_name.clone());
+                tables.push(TableInfo {
+                    name: table_name,
+                    columns: vec![col],
+                });
+            } else if let Some(t) = tables.last_mut() {
+                t.columns.push(col);
+            }
+        }
+
+        Ok(tables)
+    }
+
+    async fn get_postgres_table_schema(
+        &self,
+        pool: &PgPool,
+    ) -> AppResult<Vec<TableInfo>> {
+        let rows = sqlx::query(
+            "SELECT c.table_name, c.column_name, c.data_type, c.is_nullable,
+                    CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 'PRI'
+                         WHEN tc.constraint_type = 'UNIQUE' THEN 'UNI'
+                         ELSE NULL END AS column_key
+             FROM information_schema.columns c
+             LEFT JOIN information_schema.key_column_usage kcu
+                ON c.table_schema = kcu.table_schema AND c.table_name = kcu.table_name AND c.column_name = kcu.column_name
+             LEFT JOIN information_schema.table_constraints tc
+                ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+             WHERE c.table_schema = 'public'
+             ORDER BY c.table_name, c.ordinal_position
+             LIMIT 500",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::DatabaseQuery(e.to_string()))?;
+
+        let mut tables: Vec<TableInfo> = Vec::new();
+        let mut current_table: Option<String> = None;
+
+        for row in &rows {
+            let table_name: String = row.try_get("table_name").unwrap_or_default();
+            let col = ColumnDetail {
+                name: row.try_get("column_name").unwrap_or_default(),
+                data_type: row.try_get("data_type").unwrap_or_default(),
+                nullable: row.try_get::<String, _>("is_nullable").unwrap_or_default() == "YES",
+                key: row.try_get::<Option<String>, _>("column_key").unwrap_or(None),
+            };
+
+            if current_table.as_deref() != Some(&table_name) {
+                current_table = Some(table_name.clone());
+                tables.push(TableInfo {
+                    name: table_name,
+                    columns: vec![col],
+                });
+            } else if let Some(t) = tables.last_mut() {
+                t.columns.push(col);
+            }
+        }
+
+        Ok(tables)
+    }
+
     // ---- Redis monitoring helpers ----
 
     async fn get_redis_stats(
@@ -971,4 +1305,9 @@ impl PoolManager {
 
         Ok(databases)
     }
+}
+
+/// Simple hex encode for binary data display
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
