@@ -14,7 +14,7 @@ use common::response::ApiResponse;
 use crate::service::QueryService;
 use crate::state::AppState;
 
-/// 执行 SQL 查询
+/// 执行 SQL 查询哦
 #[utoipa::path(
     post,
     path = "/api/query",
@@ -26,6 +26,7 @@ use crate::state::AppState;
         (status = 404, description = "连接未找到")
     )
 )]
+// 测试
 pub async fn execute_query(
     State(state): State<AppState>,
     Json(req): Json<QueryRequest>,
