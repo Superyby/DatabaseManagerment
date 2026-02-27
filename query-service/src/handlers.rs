@@ -64,7 +64,7 @@ pub async fn health_check() -> Json<HealthResponse> {
     path = "/api/test",
     tag = "test",
     responses(
-        (status = 200, description = "测试成功", body = ApiResponse<String>)
+        (status = 200, description = "测试成功啦宝贝", body = ApiResponse<String>)
     )
 )]
 pub async fn hello_test() -> Json<ApiResponse<String>> {
